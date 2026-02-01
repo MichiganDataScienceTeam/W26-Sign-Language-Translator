@@ -287,6 +287,16 @@ class ImageToTensorPreprocessor():
         """
         if static_image_mode=False, uses tracking optimization for sequential video frames
         """
+        import urllib.request
+
+        # download hand_landmarker.task if not already installed
+        model_path = Path("hand_landmarker.task")
+        task_object_path = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+        if not model_path.exists():
+            print("Downloading hand_landmarker.task...")
+            urllib.request.urlretrieve(task_object_path, model_path)
+            print("Download complete!")
+
         self.output_format = output_format
         self.results = None
         self.processing_mode = "static" if static_image_mode else "video"
