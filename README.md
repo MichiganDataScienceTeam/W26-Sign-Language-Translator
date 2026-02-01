@@ -5,6 +5,5 @@
 - [Week 1 Notebook - Intro to Mediapipe](https://colab.research.google.com/drive/1bkYvOFaU2PBsfJxAZBg9k0pSEUVr8SAu?usp=drive_link)
 - Download image: `!wget -q -O image.jpg https://storage.googleapis.com/mediapipe-tasks/hand_landmarker/woman_hands.jpg`
 
-week 2 slides
-
-https://docs.google.com/presentation/d/1SBArJkI8JzcSzYju07fL3S4_uXxj5jDPHdy_tK8KAic/edit?slide=id.g3bc92866f7b_2_300#slide=id.g3bc92866f7b_2_300
+# Week 2
+- [Week 2 Slides](https://docs.google.com/presentation/d/1SBArJkI8JzcSzYju07fL3S4_uXxj5jDPHdy_tK8KAic/edit?slide=id.g3bc92866f7b_2_300#slide=id.g3bc92866f7b_2_300)
