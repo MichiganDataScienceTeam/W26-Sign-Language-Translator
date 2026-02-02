@@ -32,11 +32,12 @@ with zipfile.ZipFile('asl_letters_small_processed.zip', 'r') as zip_ref:
     zip_ref.extractall(".")
 ```
 
-You'll have to install Mediapipe since it is not installed by default:
+You'll have to install Mediapipe since it is not installed by default, as well as `dataloader.py`:
 ```python
 # run in a notebook cell
 !pip install mediapipe
 !wget -q https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+!wget -q https://raw.githubusercontent.com/MichiganDataScienceTeam/W26-Sign-Language-Translator/refs/heads/main/Week%202/dataloader.py
 ```
 
 To enable the GPU on Google Colab, select the following settings from the menu bar at the top:
