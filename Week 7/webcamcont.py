@@ -16,7 +16,8 @@ from pathlib import Path
 from collections import deque
 
 from asl_citizen_processor import Extractor, FEATURE_DIM
-from how2sign.lstm_model import Video_LSTM_morelayers as Video_LSTM
+#from lstm_model import Video_LSTM_morelayers as Video_LSTM
+from lstm_model import Video_LSTM
 
 
 # states

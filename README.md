@@ -52,6 +52,9 @@ Subject to changes.
 # Week 6 - Streamlit
 - [Week 6 Slides](https://docs.google.com/presentation/d/1BwaehXjX-Sjx6QM_3Uv5FGRv8K9EQYm26rmQNJ3vlDE/edit?usp=sharing)
 - [Week 6 Notebook (training code from before break)](https://colab.research.google.com/drive/1FAIX7Gid5Hpr_hFu5KdkMQCNVjbCVTIL#scrollTo=6s5JMqZKDj9n)
+
+# Week 7 - Continuous Gestures
+- [Week 7 Slides](https://docs.google.com/presentation/d/1pyzL0gUe7jOKgQ4u3czzLBziFHfc3q-9YRlW1Fn5o50/edit?usp=sharing)
     
 
 # Google Colab Setup Guide
