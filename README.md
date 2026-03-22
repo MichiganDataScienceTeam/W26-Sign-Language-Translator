@@ -48,6 +48,7 @@ Subject to changes.
 - [Week 5 Slides](https://docs.google.com/presentation/d/1iVnfVsaVBV4j-yOcUrzDBM0M6zAqR2_JYonSDxFm45s/edit?usp=sharing)
 - [Week 5 Notebook](https://colab.research.google.com/drive/19S9zdzCImVxbAyJaSkoUhV7Gk8ymqTQV?usp=sharing)
 - [Week 5 Python Files (also in repo)](https://drive.google.com/drive/folders/1OgBGL46I9Nf79j0pBYqnN71Mfgetc3EJ?usp=sharing)
+- [ASL Citizen Processed](https://www.kaggle.com/datasets/dennisfj/asl-citizen-processed)
 
 # Week 6 - Streamlit
 - [Week 6 Slides](https://docs.google.com/presentation/d/1BwaehXjX-Sjx6QM_3Uv5FGRv8K9EQYm26rmQNJ3vlDE/edit?usp=sharing)
