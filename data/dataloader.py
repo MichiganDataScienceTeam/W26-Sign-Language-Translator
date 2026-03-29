@@ -44,6 +44,7 @@ from mediapipe.tasks.python import vision
 
 
 most_letters = "ABCDEFGHIKLMNOPQRSTUVWXY"
+LETTERS_FEATURE_DIM = 84
 
 def letter_to_label(letter: str) -> int:
     """converts ASL letter (A-Z, excluding J and Z) to integer label 0-24. """
@@ -57,9 +58,25 @@ def label_to_letter(label: int) -> str:
 
 
 class LettersDatasetProcessor:
-    def __init__(self, src_directory="asl_letters", train_val_split=0.8, filter_to_landmarkable=False, included_letters: list[str] =None) -> None:
+    def __init__(
+        self,
+        src_directory="asl_letters",
+        train_val_split=0.8,
+        filter_to_landmarkable=True,
+        included_letters: list[str] = None,
+        to_video: bool = False,
+        video_seconds: int = 4,
+        video_fps: int = 24,
+        save_landmark_examples: bool = False,
+        max_examples_per_letter: int = 1000
+    ) -> None:
         self.train_val_split = train_val_split
         self.excluded_letters = ["del", "space", "J", "Z", "nothing"]
+        self.to_video = to_video
+        self.video_seconds = video_seconds
+        self.video_fps = video_fps
+        self.video_frames = self.video_seconds * self.video_fps
+        self.max_examples_per_letter = max_examples_per_letter
 
         if included_letters is not None:
             self.included_letters = included_letters
@@ -86,10 +103,12 @@ class LettersDatasetProcessor:
 
         # ------------------------------------------------------
         # make directories to store image with mediapipe overlay
-        self.preview_train = self.tgt_directory / "train_landmarks" 
-        self.preview_train.mkdir(parents=True, exist_ok=True)
-        self.preview_val = self.tgt_directory / "val_landmarks" 
-        self.preview_val.mkdir(parents=True, exist_ok=True)
+        self.save_landmark_examples = save_landmark_examples
+        if self.save_landmark_examples:
+            self.preview_train = self.tgt_directory / "train_landmarks" 
+            self.preview_train.mkdir(parents=True, exist_ok=True)
+            self.preview_val = self.tgt_directory / "val_landmarks" 
+            self.preview_val.mkdir(parents=True, exist_ok=True)
         # ------------------------------------------------------
 
         self.tgt_train = self.tgt_directory / "train"
@@ -101,22 +120,94 @@ class LettersDatasetProcessor:
         self.tgt_test = self.tgt_directory / "test"
         self.tgt_test.mkdir(parents=True, exist_ok=True)
 
-        self.dataset = {"index": [], "partition": [], "label": [], "letter": []}
+        self.mp4_examples_dir = self.tgt_directory / "mp4_examples"
+        self.mp4_examples_dir.mkdir(parents=True, exist_ok=True)
+        self.mp4_example_by_gloss = {}
+
+        if self.to_video:
+            self.dataset = {
+                "index": [],
+                "partition": [],
+                "label": [],
+                "gloss": [],
+                "original_filename": [],
+            }
+        else:
+            self.dataset = {"index": [], "partition": [], "label": [], "letter": []}
 
         self._process_dataset()
         print('processed dataset!')
 
         df = pd.DataFrame(self.dataset)
-        df.to_csv(self.tgt_directory / "letters.csv", index=False)
+        label_set = {
+            letter_to_label(letter)
+            for letter in self.included_letters
+            if letter in most_letters
+        }
+        label_map_df = pd.DataFrame(
+            {
+                "label": sorted(label_set),
+                "gloss": [label_to_letter(label) for label in sorted(label_set)],
+            }
+        )
+        label_map_df["mp4_example"] = label_map_df["gloss"].map(
+            lambda gloss: self.mp4_example_by_gloss.get(gloss, "")
+        )
+
+        if self.to_video:
+            df.to_csv(self.tgt_directory / "glosses.csv", index=False)
+            label_map_df.to_csv(self.tgt_directory / "label_map.csv", index=False)
+
+            pd.DataFrame(
+                {
+                    "feature_dim": [LETTERS_FEATURE_DIM],
+                    "num_classes": [len(label_map_df)],
+                }
+            ).to_csv(self.tgt_directory / "config.csv", index=False)
+        else:
+            df.to_csv(self.tgt_directory / "glosses.csv", index=False)
+            label_map_df.to_csv(self.tgt_directory / "label_map.csv", index=False)
     
-    def _add_record(self, index: int, partition: str, label: int, letter: str):
+    def _make_video_tensor(self, landmark_tensor: torch.Tensor) -> torch.Tensor:
+        """Convert one static (84,) landmark tensor into a fixed-length (T,84) sequence."""
+        if self.video_frames <= 0:
+            raise ValueError("video_frames must be > 0")
+        return landmark_tensor.unsqueeze(0).repeat(self.video_frames, 1)
+
+    def _save_mp4_example(self, gloss: str, image_bgr: npt.ArrayLike):
+        """Save a single 4-second mp4 preview clip per gloss based on a static image."""
+        if gloss in self.mp4_example_by_gloss:
+            return
+        if image_bgr is None:
+            return
+
+        output_name = f"{gloss}.mp4"
+        output_path = self.mp4_examples_dir / output_name
+        height, width = image_bgr.shape[:2]
+        writer = cv2.VideoWriter(
+            str(output_path),
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            self.video_fps,
+            (width, height),
+        )
+        for _ in range(self.video_frames):
+            writer.write(image_bgr)
+        writer.release()
+
+        self.mp4_example_by_gloss[gloss] = output_name
+
+    def _add_record(self, index: int, partition: str, label: int, letter: str, original_filename: str = None):
         self.dataset["index"].append(index)
         self.dataset["partition"].append(partition)
         self.dataset["label"].append(label)
-        self.dataset["letter"].append(letter)
+        if self.to_video:
+            self.dataset["gloss"].append(letter)
+            self.dataset["original_filename"].append(original_filename if original_filename is not None else "")
+        else:
+            self.dataset["letter"].append(letter)
 
     def _process_dataset(self):
-        # add train and validation data: 3000 observations for each letter
+        # add train and validation data: up to max_examples_per_letter observations for each letter
 
         i = 0
         for letter in self.src_train_val_dir.iterdir():
@@ -129,37 +220,88 @@ class LettersDatasetProcessor:
                     continue
             #else:
                 #print(f"this is {letter.name}")
+            
+            examples_count = 0
             for example in letter.iterdir():
-                if self.filter_to_landmarkable:
-                    img = cv2.imread(Path.cwd() / example)
+                if examples_count >= self.max_examples_per_letter:
+                    break
+                
+                img = cv2.imread(Path.cwd() / example)
+                if img is None:
+                    continue
+
+                img_landmarks = None
+                if self.to_video or self.filter_to_landmarkable:
                     img_landmarks = self.landmark_checker(img)
                     if img_landmarks is None:
                         # Skip images where landmarks cannot be detected
                         continue
+
+                self._save_mp4_example(letter.name, img)
+                examples_count += 1
                 
                 random_number = random()
                 if random_number > self.train_val_split:
-                    copy(Path.cwd() / example, self.tgt_val / f"{self.val_index}.jpg")
-                    self._add_record(self.val_index, "val", letter_to_label(letter.name), letter.name)
-                    if self.filter_to_landmarkable:
+                    if self.to_video:
+                        video_tensor = self._make_video_tensor(img_landmarks)
+                        torch.save(video_tensor, self.tgt_val / f"{self.val_index}.pt")
+                        self._add_record(
+                            self.val_index,
+                            "val",
+                            letter_to_label(letter.name),
+                            letter.name,
+                            original_filename=example.name,
+                        )
+                    else:
+                        copy(Path.cwd() / example, self.tgt_val / f"{self.val_index}.jpg")
+                        self._add_record(self.val_index, "val", letter_to_label(letter.name), letter.name)
+                    if self.save_landmark_examples and self.filter_to_landmarkable and not self.to_video:
                         cv2.imwrite(self.preview_val / f"val_{self.val_index}.jpg", img)
                     self.val_index += 1
                 else:
-                    copy(Path.cwd() / example, self.tgt_train / f"{self.train_index}.jpg")
-                    self._add_record(self.train_index, "train", letter_to_label(letter.name), letter.name)
-                    if self.filter_to_landmarkable:
+                    if self.to_video:
+                        video_tensor = self._make_video_tensor(img_landmarks)
+                        torch.save(video_tensor, self.tgt_train / f"{self.train_index}.pt")
+                        self._add_record(
+                            self.train_index,
+                            "train",
+                            letter_to_label(letter.name),
+                            letter.name,
+                            original_filename=example.name,
+                        )
+                    else:
+                        copy(Path.cwd() / example, self.tgt_train / f"{self.train_index}.jpg")
+                        self._add_record(self.train_index, "train", letter_to_label(letter.name), letter.name)
+                    if self.save_landmark_examples and self.filter_to_landmarkable and not self.to_video:
                         cv2.imwrite(self.preview_train / f"train_{self.train_index}.jpg", img)
                     self.train_index += 1
             
         # add test data: one observation each
         for letter in self.included_letters:
-            copy(self.src_test_dir / f"{letter}_test.jpg", self.tgt_test / f"{self.test_index}.jpg")
-            self._add_record(self.test_index, "test", letter_to_label(letter), letter)
+            test_img_path = self.src_test_dir / f"{letter}_test.jpg"
+            test_img = cv2.imread(test_img_path)
+            self._save_mp4_example(letter, test_img)
+            if self.to_video:
+                img_landmarks = self.landmark_checker(test_img)
+                if img_landmarks is None:
+                    continue
+                video_tensor = self._make_video_tensor(img_landmarks)
+                torch.save(video_tensor, self.tgt_test / f"{self.test_index}.pt")
+                self._add_record(
+                    self.test_index,
+                    "test",
+                    letter_to_label(letter),
+                    letter,
+                    original_filename=test_img_path.name,
+                )
+            else:
+                copy(test_img_path, self.tgt_test / f"{self.test_index}.jpg")
+                self._add_record(self.test_index, "test", letter_to_label(letter), letter)
             self.test_index += 1
 
 
 class VideoDatasetProcessor:
-    def __init__(self, src_directory="asl_glosses", train_val_split = 0.8, filter_to_landmarkable=False, top_n: int = 5, excluded_glosses: list[str] = None, selected_glosses: list[str] = None) -> None:
+    def __init__(self, src_directory="asl_glosses", train_val_split = 0.8, filter_to_landmarkable=False, top_n: int = 5, excluded_glosses: list[str] = None, selected_glosses: list[str] = None, save_landmark_examples: bool = False) -> None:
         """
         Dennis: To use this with other possible video dataset, create a copy of this with a modified:
         - self.src_directory
@@ -184,6 +326,17 @@ class VideoDatasetProcessor:
             output_format="landmarks",
             static_image_mode=False,
             draw_on_img=True,
+            min_detection_confidence=0.25,
+            min_tracking_confidence=0.5
+        )
+        
+        # Separate preprocessor for tensor extraction (no drawing)
+        self.tensor_extractor = ImageToTensorPreprocessor(
+            output_format="landmarks",
+            landmark_normalization_method="per-frame-wrist",
+            static_image_mode=False,
+            draw_on_img=False,
+            max_hands=2,
             min_detection_confidence=0.25,
             min_tracking_confidence=0.5
         )
@@ -249,10 +402,12 @@ class VideoDatasetProcessor:
 
         # ------------------------------------------------------
         # make directories to store image with mediapipe overlay
-        self.preview_train = self.tgt_directory / "train_landmarks" 
-        self.preview_train.mkdir(parents=True, exist_ok=True)
-        self.preview_val = self.tgt_directory / "val_landmarks" 
-        self.preview_val.mkdir(parents=True, exist_ok=True)
+        self.save_landmark_examples = save_landmark_examples
+        if self.save_landmark_examples:
+            self.preview_train = self.tgt_directory / "train_landmarks" 
+            self.preview_train.mkdir(parents=True, exist_ok=True)
+            self.preview_val = self.tgt_directory / "val_landmarks" 
+            self.preview_val.mkdir(parents=True, exist_ok=True)
         # ------------------------------------------------------
 
         self.tgt_train = self.tgt_directory / "train"
@@ -264,6 +419,10 @@ class VideoDatasetProcessor:
         self.tgt_test = self.tgt_directory / "test"
         self.tgt_test.mkdir(parents=True, exist_ok=True)
 
+        self.mp4_examples_dir = self.tgt_directory / "mp4_examples"
+        self.mp4_examples_dir.mkdir(parents=True, exist_ok=True)
+        self.mp4_example_by_gloss = {}
+
         self.dataset = {"index": [], "partition": [], "label": [], "gloss": []}
 
         self._process_dataset()
@@ -271,6 +430,49 @@ class VideoDatasetProcessor:
 
         df = pd.DataFrame(self.dataset)
         df.to_csv(self.tgt_directory / "glosses.csv", index=False)
+
+        label_map_df = pd.DataFrame(
+            {
+                "label": list(range(len(self.glosses))),
+                "gloss": list(self.glosses.keys()),
+            }
+        )
+        label_map_df["mp4_example"] = label_map_df["gloss"].map(
+            lambda gloss: self.mp4_example_by_gloss.get(gloss, "")
+        )
+        label_map_df.to_csv(self.tgt_directory / "label_map.csv", index=False)
+        
+        pd.DataFrame(
+            {
+                "feature_dim": [84],
+                "num_classes": [len(self.glosses)],
+            }
+        ).to_csv(self.tgt_directory / "config.csv", index=False)
+    
+    def _process_video_to_tensor(self, video_path: Path) -> torch.Tensor:
+        """Load video and extract landmarks as (T, 84) tensor."""
+        video_reader = cv2.VideoCapture(str(video_path))
+        is_first_frame = True
+        first_frame_landmark_tensor = torch.zeros(84, dtype=torch.float32)
+        frames = []
+        
+        while True:
+            ret, frame = video_reader.read()
+            if not ret:
+                break
+            
+            current_frame = self.tensor_extractor(frame, first_frame_landmark_tensor=first_frame_landmark_tensor)
+            if current_frame is not None:
+                frames.append(current_frame)
+                if is_first_frame:
+                    first_frame_landmark_tensor = current_frame.detach().clone()
+                    is_first_frame = False
+        
+        video_reader.release()
+        
+        if len(frames) == 0:
+            return None
+        return torch.stack(frames)
     
     def _add_record(self, index: int, partition: str, label: int, gloss: str):
         self.dataset["index"].append(index)
@@ -285,21 +487,30 @@ class VideoDatasetProcessor:
                 continue
 
             for example in examples:
+                input_path = Path.cwd() / example["filepath"]
+
                 if self.filter_to_landmarkable:
-                    input_path = Path.cwd() / example["filepath"]
-                    
                     is_landmarkable = self.landmark_checker.draw_hand_landmarks_video(
                         input_path, temp_output_path
                     )
                     
                     if not is_landmarkable:
                         continue
+
+                if gloss not in self.mp4_example_by_gloss and input_path.exists():
+                    output_name = f"{gloss}.mp4"
+                    copy(input_path, self.mp4_examples_dir / output_name)
+                    self.mp4_example_by_gloss[gloss] = output_name
                 
+                # Extract landmarks and save as .pt tensor
                 # Defer train/val splitting to dataloader stage for proper stratification.
-                # Store all samples in train directory initially.
-                copy(Path.cwd() / example["filepath"], self.tgt_train / f"{self.train_index}.mp4")
+                tensor = self._process_video_to_tensor(input_path)
+                if tensor is None:
+                    continue
+                
+                torch.save(tensor, self.tgt_train / f"{self.train_index}.pt")
                 self._add_record(self.train_index, "train", self.gloss_to_label(gloss), gloss)
-                if self.filter_to_landmarkable:
+                if self.save_landmark_examples and self.filter_to_landmarkable:
                     temp_output_path.rename(self.preview_train / f"train_{self.train_index}.mp4")
                 self.train_index += 1
 
@@ -728,7 +939,7 @@ class ImageDataset(GestureDataset):
                 raise ValueError(f"Invalid partition specified - {partition}")
             self.directory = Path(directory)
             self.img_directory = self.directory / partition
-            metadata = pd.read_csv(self.directory / "letters.csv")
+            metadata = pd.read_csv(self.directory / "glosses.csv")
             
             if indices is not None:
                 # Use provided indices (for stratified split)
@@ -820,23 +1031,9 @@ class VideoDataset(GestureDataset):
     def __load_video(self, index) -> tuple[torch.Tensor, int]:
         row = self.metadata.iloc[index]
         file_index = row["index"]
-        video_reader = cv2.VideoCapture(self.img_directory / f"{file_index}.mp4")
-        is_first_frame = True
-        # used when normalizing landmarks via "first-frame-wrist"
-        first_frame_landmark_tensor = torch.zeros(84, dtype=torch.float32)
-        video = []
-        while True:
-            ret, frame = (video_reader.read())
-            if not ret:
-                break
-            current_frame = self.preprocessor(frame, first_frame_landmark_tensor=first_frame_landmark_tensor)
-            if current_frame is not None:
-                video.append(current_frame)
-                if is_first_frame:
-                    first_frame_landmark_tensor = current_frame.detach().clone()
-                    is_first_frame = False
-
-        return torch.stack(video)
+        # Load pre-processed tensor from .pt file
+        tensor = torch.load(self.img_directory / f"{file_index}.pt")
+        return tensor
     
     def __len__(self) -> int:
         return len(self.metadata)
@@ -887,7 +1084,7 @@ def get_dataloader(
             directory = dataset_name
         else:
             directory = f"{dataset_name}_processed"
-        metadata = pd.read_csv(Path(directory) / "letters.csv")
+        metadata = pd.read_csv(Path(directory) / "glosses.csv")
         # Only use samples originally marked as train (exclude test)
         train_val_metadata = metadata[metadata["partition"] != "test"]
         
