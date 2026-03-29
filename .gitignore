@@ -4,3 +4,6 @@
 __pycache__
 sign_language_translator
 *.pth
+*.mp4
+*.zip
+data/other

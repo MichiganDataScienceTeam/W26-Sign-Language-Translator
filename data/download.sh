@@ -18,8 +18,11 @@ then
     DATASET_OWNER="dennisfj"
     DATASET_ID="wlasl-processed"
 else
-    echo "ERROR: Invalid dataset name: \"$1\". Expected either \"asl-citizen\" , \"wlasl-processed\", or \"wlasl\""
-    exit 1
+    DATASET_NAME="$1"
+    DATASET_OWNER="dennisfj"  # TODO: replace with your kaggle username
+    DATASET_ID="$1"
+    #echo "ERROR: Invalid dataset name: \"$1\". Expected either \"asl-citizen\" , \"wlasl-processed\", or \"wlasl\""
+    #exit 1
 fi
 
 function download() {
@@ -31,12 +34,13 @@ function download() {
 function clean () {
     if [ $DATASET_NAME == "asl-citizen-processed" ]
     then
-        mv data/$DATASET_NAME/asl-citizen-processed/train data/$DATASET_NAME/train
-        mv data/$DATASET_NAME/asl-citizen-processed/test data/$DATASET_NAME/test
-        mv data/$DATASET_NAME/asl-citizen-processed/valid data/$DATASET_NAME/valid
-        mv data/$DATASET_NAME/asl-citizen-processed/config.csv data/$DATASET_NAME/config.csv
-        mv data/$DATASET_NAME/asl-citizen-processed/glosses.csv data/$DATASET_NAME/glosses.csv
-        mv data/$DATASET_NAME/asl-citizen-processed/label_map.csv data/$DATASET_NAME/label_map.csv
+        mv data/$DATASET_NAME/asl_citizen_processed/train data/$DATASET_NAME/train
+        mv data/$DATASET_NAME/asl_citizen_processed/test data/$DATASET_NAME/test
+        mv data/$DATASET_NAME/asl_citizen_processed/valid data/$DATASET_NAME/valid
+        mv data/$DATASET_NAME/asl_citizen_processed/config.csv data/$DATASET_NAME/config.csv
+        mv data/$DATASET_NAME/asl_citizen_processed/glosses.csv data/$DATASET_NAME/glosses.csv
+        mv data/$DATASET_NAME/asl_citizen_processed/label_map.csv data/$DATASET_NAME/label_map.csv
+        mv data/$DATASET_NAME/asl_citizen_processed/mp4_examples data/$DATASET_NAME/mp4_examples
         
         rmdir data/$DATASET_NAME/asl-citizen-processed
     elif [ $DATASET_NAME == "wlasl-gesture-videos" ]
@@ -50,6 +54,12 @@ function clean () {
         
         rmdir data/$DATASET_NAME/asl_glosses_hard_processed
     fi
+    elif [ $DATASET_NAME == "$1" ]
+        mv data/$DATASET_NAME/$DATASET_NAME/* data/$DATASET_NAME/
+        
+        rmdir data/$DATASET_NAME/$DATASET_NAME
+    fi
+
 }
 
 echo "WARNING: Your Python virtual environment should be enabled while running this script!"

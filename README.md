@@ -48,6 +48,7 @@ Subject to changes.
 - [Week 5 Slides](https://docs.google.com/presentation/d/1iVnfVsaVBV4j-yOcUrzDBM0M6zAqR2_JYonSDxFm45s/edit?usp=sharing)
 - [Week 5 Notebook](https://colab.research.google.com/drive/19S9zdzCImVxbAyJaSkoUhV7Gk8ymqTQV?usp=sharing)
 - [Week 5 Python Files (also in repo)](https://drive.google.com/drive/folders/1OgBGL46I9Nf79j0pBYqnN71Mfgetc3EJ?usp=sharing)
+- [ASL Citizen Processed](https://www.kaggle.com/datasets/dennisfj/asl-citizen-processed)
 
 # Week 6 - Streamlit
 - [Week 6 Slides](https://docs.google.com/presentation/d/1BwaehXjX-Sjx6QM_3Uv5FGRv8K9EQYm26rmQNJ3vlDE/edit?usp=sharing)
@@ -55,6 +56,11 @@ Subject to changes.
 
 # Week 7 - Continuous Gestures
 - [Week 7 Slides](https://docs.google.com/presentation/d/1pyzL0gUe7jOKgQ4u3czzLBziFHfc3q-9YRlW1Fn5o50/edit?usp=sharing)
+
+# Week 8 - Translation, Metrics
+- [Translation Server](https://colab.research.google.com/drive/1UylRDtLGDAdMvA5XDz9LKATI19tP_kR1#scrollTo=1ZPwlWc85Sfe)
+- [Week 8 Slides](https://docs.google.com/presentation/d/1IHvodKD4pMa_N-l6ZHiMMpEZpsqFUg7GrC01kS9uUTc/edit?slide=id.g3d3367eab88_2_216#slide=id.g3d3367eab88_2_216)
+- [Week 6 Notebook (training code from before break)](https://colab.research.google.com/drive/1FAIX7Gid5Hpr_hFu5KdkMQCNVjbCVTIL#scrollTo=6s5JMqZKDj9n)
     
 
 # Google Colab Setup Guide
